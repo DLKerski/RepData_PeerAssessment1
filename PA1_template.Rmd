@@ -1,25 +1,125 @@
+#"Reproducible Project 1"
+author: "DLKerski"
+date: "4/22/2019"
+output: html_document
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
----
+This assignment makes use of data from a personal activity monitoring device. Device collects data at 5 minute intervals through out the day and consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+The data for this assignment is downloaded from course site and is csv file.
+
+The variables included in this dataset are:
+
+**steps**: Number of steps taking in a 5-minute interval (missing values are coded as 𝙽𝙰)
+**date**: The date on which the measurement was taken in YYYY-MM-DD format
+**interval**: Identifier for the 5-minute interval in which measurement was taken
+
+Date field is a factor, field must be changed to date
+
+```{r}
+setwd("~/Personal/Coursera/Reproducible Research")
+library(dplyr)
+library(ggplot2)
+activity <-read.csv("activity.csv")
+activity$date<- as.Date(activity$date, format = "%Y-%m-%d")
+```
+
+#Exploratory Analysis
+
+```{r}
+head(activity)
+```
 
 
-## Loading and preprocessing the data
+``` {r}
+summary(activity)
+```
 
 
+Noted there are significant numbers of NA in steps.  Mean and median for steps are listed above.
 
-## What is mean total number of steps taken per day?
+Days for week could be important part of imputing results, added to data set.
+
+```{r}
+daysactivity<-mutate(activity, dayofwk = weekdays(date))
+```
+
+Graph of the total number of steps taken each day, coded by day of the week.
+
+```{r}
+bydate <-activity %>% group_by(date) %>%summarise(daysteps=sum(steps))
+daybydate<-mutate(bydate, dayofwk = weekdays(date))
+ggplot(daybydate, aes(x=date,y=daysteps)) + geom_bar(aes(fill=daybydate$dayofwk),stat = "identity")
+```
+
+There is no specific day of the week that appears to be missing data; distributed by number of days.
+Data grouped by interval, with average for interval, graphed as timeseries
+
+``` {r}
+intervalsteps <-activity %>% group_by(interval) %>% summarise(avgsteps =mean(steps, na.rm =TRUE))
+qplot(interval, avgsteps, data=intervalsteps,geom = c("line"), main = "Daily Activity by Interval")
+```
 
 
+``` {r}
+intervalsteps[intervalsteps$avgsteps ==  max(intervalsteps$avgsteps, na.rm = TRUE),]
+```
 
-## What is the average daily activity pattern?
+Interval 835 has the max average step @206
 
+#Imputing Missing Values
 
+As seen in the daily graph, there appear to be up to entire days with data missing.  These are not on any one specific day of the week, but variety of days of the week.  A possibility could be the device didn't work, wasn't turned on, but something led to a variety of days with little or no data.
 
-## Imputing missing values
+```{r}
+nabydate <-activity %>% group_by(date) %>%summarise(sum_NA=sum(is.na(steps)))
+plot(nabydate$date,nabydate$sum_NA)
+```
 
+The plot confirms the opposite of summary graph by showing sum of NA that on different days, there were large amounts of NA.
 
+Since it appears there are different days with missing values, examine the different days averages.  If they are largely the same, using one value for all missing days might be reasonable.  However if there are different averages for each day, then NA replacement might be better by the average for that day.
 
-## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+avgactivitybyday <-daysactivity %>% group_by(dayofwk)%>% summarise(dayavg=mean(steps, na.rm = TRUE))
+print(avgactivitybyday)
+```
+
+Since there is variability by day of the week, the missing days will be imputed by the day of the week where NA occurs.  Code checks first for NA, then if present matches the day of the week to the average for that day using the above values, and replaces NA with the average value for that day.
+
+```{r}
+imputedaysactivity <-daysactivity
+imputedaysactivity[imputedaysactivity$steps %in% NA & imputedaysactivity$dayofwk %in% "Monday",1] <-avgactivitybyday[avgactivitybyday$dayofwk %in% "Monday",2]
+imputedaysactivity[imputedaysactivity$steps %in% NA & imputedaysactivity$dayofwk %in% "Tuesday",1] <-avgactivitybyday[avgactivitybyday$dayofwk %in% "Tuesday",2]
+imputedaysactivity[imputedaysactivity$steps %in% NA & imputedaysactivity$dayofwk %in% "Wednesday",1] <-avgactivitybyday[avgactivitybyday$dayofwk %in% "Wednesday",2]
+imputedaysactivity[imputedaysactivity$steps %in% NA & imputedaysactivity$dayofwk %in% "Thursday",1] <-avgactivitybyday[avgactivitybyday$dayofwk %in% "Thursday",2]
+imputedaysactivity[imputedaysactivity$steps %in% NA & imputedaysactivity$dayofwk %in% "Friday",1] <-avgactivitybyday[avgactivitybyday$dayofwk %in% "Friday",2]
+imputedaysactivity[imputedaysactivity$steps %in% NA & imputedaysactivity$dayofwk %in% "Saturday",1] <-avgactivitybyday[avgactivitybyday$dayofwk %in% "Saturday",2]
+imputedaysactivity[imputedaysactivity$steps %in% NA & imputedaysactivity$dayofwk %in% "Sunday",1] <-avgactivitybyday[avgactivitybyday$dayofwk %in% "Sunday",2]
+```
+
+##Imputed data
+
+Plot for total number of steps now by date for imputed data
+
+```{r}
+imputebydate <-imputedaysactivity %>% group_by(date) %>% summarise(daysteps =sum(steps))
+ggplot(imputebydate, aes(date,daysteps)) + geom_bar(stat = "identity")
+```
+
+```{r}
+summary(imputedaysactivity)
+```
+
+Mean and median are reported above.
+
+For time series graph, take imputed data, group by weekend and weekday.  Group these by interval, generate mean for these intervals.  Graph Weekend and Weekday in one column for comparison.
+```{r}
+imputeweek_vs_end <-mutate(imputedaysactivity,type = ifelse(dayofwk %in% c("Monday","Tuesday","Wednesday","Thursday","Friday"),"weekday","weekend"))
+imputeweekday <- imputeweek_vs_end %>% filter(type %in% "weekday")%>% group_by(interval) %>% summarise(avgsteps =mean(steps, na.rm =TRUE))
+imputeweekend <- imputeweek_vs_end %>% filter(type %in% "weekend")%>% group_by(interval) %>% summarise(avgsteps =mean(steps, na.rm =TRUE))
+library(grid)
+library(gridExtra)
+p1 <- qplot(interval, avgsteps, data=imputeweekend,geom = c("line"), xlab = "Weekend, by interval")
+p2 <- qplot(interval, avgsteps, data=imputeweekday,geom = c("line"), xlab = "Weekday, by interval")
+grid.arrange(p1,p2,nrow=2)
+```
