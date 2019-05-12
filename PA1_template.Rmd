@@ -1,4 +1,4 @@
-#"Reproducible Project 1"
+# Reproducible Project 1
 author: "DLKerski"
 date: "4/22/2019"
 output: html_document
@@ -23,7 +23,7 @@ activity <-read.csv("activity.csv")
 activity$date<- as.Date(activity$date, format = "%Y-%m-%d")
 ```
 
-#Exploratory Analysis
+# Exploratory Analysis
 
 ```{r}
 head(activity)
@@ -35,7 +35,15 @@ summary(activity)
 ```
 
 
-Noted there are significant numbers of NA in steps.  Mean and median for steps are listed above.
+Noted there are significant numbers of NA in steps.  Mean and median for steps are listed above.  
+
+Histogram of days and steps is below.  
+
+```{r}
+step <- activity$steps
+date <- activity$date
+hist(tapply(step, date, sum), xlab="Steps", ylab= "Days", breaks=60, main = "Steps by Days")
+```
 
 Days for week could be important part of imputing results, added to data set.
 
@@ -64,9 +72,9 @@ qplot(interval, avgsteps, data=intervalsteps,geom = c("line"), main = "Daily Act
 intervalsteps[intervalsteps$avgsteps ==  max(intervalsteps$avgsteps, na.rm = TRUE),]
 ```
 
-Interval 835 has the max average step @206
+# Interval 835 has the max average step @206 (This is highlighted as missed by one previous reviewer)
 
-#Imputing Missing Values
+## Imputing Missing Values
 
 As seen in the daily graph, there appear to be up to entire days with data missing.  These are not on any one specific day of the week, but variety of days of the week.  A possibility could be the device didn't work, wasn't turned on, but something led to a variety of days with little or no data.
 
@@ -97,13 +105,16 @@ imputedaysactivity[imputedaysactivity$steps %in% NA & imputedaysactivity$dayofwk
 imputedaysactivity[imputedaysactivity$steps %in% NA & imputedaysactivity$dayofwk %in% "Sunday",1] <-avgactivitybyday[avgactivitybyday$dayofwk %in% "Sunday",2]
 ```
 
-##Imputed data
+## Imputed data
 
-Plot for total number of steps now by date for imputed data
+Plot for total number of steps now by day for imputed data
 
 ```{r}
 imputebydate <-imputedaysactivity %>% group_by(date) %>% summarise(daysteps =sum(steps))
-ggplot(imputebydate, aes(date,daysteps)) + geom_bar(stat = "identity")
+step1 <-imputebydate$daysteps
+date1<-imputebydate$date
+hist(tapply(step1, date1, sum), xlab="Steps", ylab= "Days", breaks=60, main="Steps by Days")
+#ggplot(imputebydate, aes(date,daysteps)) + geom_bar(stat = "identity")
 ```
 
 ```{r}
